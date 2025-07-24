@@ -79,7 +79,10 @@ const CampaignCreator: React.FC<CampaignCreatorProps> = ({ onBack }) => {
   const generateCampaignContent = async () => {
     setIsGenerating(true)
     try {
-      // Generate campaign strategy using AI
+      // Get current user
+      const user = await blink.auth.me()
+      
+      // Generate campaign strategy using AI with web search for current trends
       const { text: strategy } = await blink.ai.generateText({
         prompt: `Create a comprehensive content marketing campaign strategy for:
         
@@ -94,43 +97,74 @@ Keywords: ${campaignData.keywords}
 
 Please provide:
 1. Content calendar with 10 specific content ideas
-2. Platform-specific adaptations
-3. Engagement strategies
-4. Key performance indicators
-5. Timeline and milestones
+2. Platform-specific adaptations for ${campaignData.platforms.join(', ')}
+3. Engagement strategies based on current trends
+4. Key performance indicators (KPIs) to track
+5. Timeline and milestones for ${campaignData.duration}
+6. Hashtag recommendations
+7. Optimal posting times for each platform
 
-Format as JSON with clear structure.`,
-        maxTokens: 2000
+Make it actionable and specific to the ${campaignData.contentType} content type with ${campaignData.tone} tone.`,
+        maxTokens: 2000,
+        search: true // Use web search for current trends
       })
 
-      // Generate specific content ideas
+      // Generate specific content ideas with AI
       const { text: contentIdeas } = await blink.ai.generateText({
-        prompt: `Generate 5 specific, actionable content ideas for this campaign:
+        prompt: `Generate 8 specific, actionable content ideas for this ${campaignData.contentType} campaign:
         
 Campaign: ${campaignData.name}
-Target: ${campaignData.targetAudience}
+Target Audience: ${campaignData.targetAudience}
 Platforms: ${campaignData.platforms.join(', ')}
 Tone: ${campaignData.tone}
+Keywords: ${campaignData.keywords}
 
-For each idea, provide:
-- Title/Hook
-- Content outline
-- Platform-specific format
-- Expected engagement type
-- Call-to-action
+For each content idea, provide:
+- Engaging title/hook that grabs attention
+- Detailed content outline (3-5 bullet points)
+- Platform-specific format recommendations
+- Visual concept description
+- Expected engagement type (likes, shares, comments, saves)
+- Strong call-to-action
+- Relevant hashtags (5-10 per platform)
+- Best posting time recommendation
 
-Format as JSON array.`,
-        maxTokens: 1500
+Make each idea unique and tailored to the specific platform's audience behavior.`,
+        maxTokens: 1800
+      })
+
+      // Generate competitor analysis insights
+      const { text: competitorInsights } = await blink.ai.generateText({
+        prompt: `Analyze the competitive landscape for a ${campaignData.contentType} campaign targeting ${campaignData.targetAudience} on ${campaignData.platforms.join(', ')}:
+
+Keywords: ${campaignData.keywords}
+Campaign Goal: ${campaignData.objective}
+
+Provide:
+1. Top 5 competitor strategies in this niche
+2. Content gaps and opportunities
+3. Trending topics and formats
+4. Best performing content types
+5. Differentiation strategies
+6. Pricing/value proposition insights
+7. Audience engagement patterns
+
+Focus on actionable competitive intelligence.`,
+        maxTokens: 1500,
+        search: true
       })
 
       setGeneratedContent({
         strategy,
         contentIdeas,
+        competitorInsights,
         timestamp: new Date().toISOString()
       })
 
-      // Save campaign to database
+      // Save campaign to database with user ID
+      const campaignId = `campaign_${Date.now()}`
       await blink.db.campaigns.create({
+        id: campaignId,
         name: campaignData.name,
         description: campaignData.description,
         objective: campaignData.objective,
@@ -144,12 +178,27 @@ Format as JSON array.`,
         status: 'active',
         generated_strategy: strategy,
         generated_content: contentIdeas,
-        user_id: 'current-user', // Will be replaced with actual user ID
+        competitor_insights: competitorInsights,
+        user_id: user.id,
         created_at: new Date().toISOString()
+      })
+
+      // Log campaign creation activity
+      await blink.db.activity_log.create({
+        user_id: user.id,
+        action: 'campaign_created',
+        target: campaignData.name,
+        details: `Created campaign with ${selectedAgents.length} AI agents for ${campaignData.platforms.length} platforms`,
+        timestamp: new Date().toISOString()
       })
 
     } catch (error) {
       console.error('Error generating campaign:', error)
+      // Show user-friendly error message
+      setGeneratedContent({
+        error: 'Failed to generate campaign content. Please try again.',
+        timestamp: new Date().toISOString()
+      })
     } finally {
       setIsGenerating(false)
     }

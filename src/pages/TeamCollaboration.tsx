@@ -210,12 +210,30 @@ const TeamCollaboration: React.FC<TeamCollaborationProps> = ({ onBack }) => {
   const inviteTeamMember = async () => {
     setIsInviting(true)
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500))
+      const user = await blink.auth.me()
+      
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      if (!emailRegex.test(inviteForm.email)) {
+        throw new Error('Please enter a valid email address')
+      }
+      
+      // Check if member already exists
+      const existingMembers = await blink.db.team_members.list({
+        where: { email: inviteForm.email },
+        limit: 1
+      })
+      
+      if (existingMembers.length > 0) {
+        throw new Error('This email is already invited or part of the team')
+      }
+      
+      // Generate invitation token
+      const invitationToken = `invite_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
       
       const newMember: TeamMember = {
         id: Date.now().toString(),
-        name: inviteForm.email.split('@')[0],
+        name: inviteForm.email.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
         email: inviteForm.email,
         role: inviteForm.role,
         status: 'pending',
@@ -232,19 +250,37 @@ const TeamCollaboration: React.FC<TeamCollaborationProps> = ({ onBack }) => {
 
       setTeamMembers(prev => [...prev, newMember])
       
-      // Save to database
+      // Save to database with proper relationships
       await blink.db.team_members.create({
+        id: `member_${Date.now()}`,
         email: inviteForm.email,
+        name: newMember.name,
         role: inviteForm.role,
         status: 'pending',
-        invited_by: 'current-user',
+        invitation_token: invitationToken,
+        invitation_message: inviteForm.message,
+        invited_by: user.id,
         invited_at: new Date().toISOString(),
-        user_id: 'current-user'
+        user_id: user.id // This represents the team owner
       })
 
+      // Log team activity
+      await blink.db.activity_log.create({
+        user_id: user.id,
+        action: 'team_member_invited',
+        target: inviteForm.email,
+        details: `Invited ${inviteForm.email} as ${inviteForm.role}${inviteForm.message ? ' with personal message' : ''}`,
+        timestamp: new Date().toISOString()
+      })
+
+      // In a real app, you would send an email invitation here
+      // await sendInvitationEmail(inviteForm.email, invitationToken, inviteForm.message)
+      
       setInviteForm({ email: '', role: 'editor', message: '' })
     } catch (error) {
       console.error('Failed to invite member:', error)
+      // You could show this error to the user via a toast or alert
+      alert(error.message || 'Failed to invite team member. Please try again.')
     } finally {
       setIsInviting(false)
     }

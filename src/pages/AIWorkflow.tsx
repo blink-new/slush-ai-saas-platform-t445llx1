@@ -90,88 +90,154 @@ const AIWorkflow: React.FC<AIWorkflowProps> = ({ campaignId, onBack }) => {
     ))
 
     try {
+      const user = await blink.auth.me()
       let prompt = ''
       let previousOutput = ''
+      let useSearch = false
       
       // Get previous step output for context
       if (stepIndex > 0) {
         previousOutput = workflowSteps[stepIndex - 1].output || ''
       }
 
-      // Generate step-specific prompts
+      // Get campaign context if available
+      let campaignContext = ''
+      if (campaignId) {
+        try {
+          const campaigns = await blink.db.campaigns.list({
+            where: { id: campaignId },
+            limit: 1
+          })
+          if (campaigns.length > 0) {
+            const campaign = campaigns[0]
+            campaignContext = `Campaign: ${campaign.name}
+Target Audience: ${campaign.target_audience}
+Platforms: ${campaign.platforms}
+Content Type: ${campaign.content_type}
+Tone: ${campaign.tone}
+Keywords: ${campaign.keywords}`
+          }
+        } catch (error) {
+          console.log('No campaign context available')
+        }
+      }
+
+      // Generate step-specific prompts with enhanced context
       switch (step.id) {
         case 'planning':
-          prompt = `Create a comprehensive content planning strategy for a creator campaign. Include:
-          1. Content calendar for the next 4 weeks
-          2. Key themes and topics
-          3. Content pillars
-          4. Posting frequency recommendations
-          5. Platform-specific adaptations
+          prompt = `Create a comprehensive content planning strategy for a creator campaign.
           
-          Format as a detailed plan with actionable items.`
+${campaignContext}
+
+Include:
+1. Content calendar for the next 4 weeks with specific dates
+2. Key themes and topics based on current trends
+3. Content pillars that align with brand values
+4. Posting frequency recommendations per platform
+5. Platform-specific adaptations and best practices
+6. Seasonal/trending opportunities
+7. Content mix ratios (educational, promotional, entertaining)
+
+Format as a detailed, actionable plan with specific dates and deliverables.`
+          useSearch = true
           break
           
         case 'brainstorming':
           prompt = `Based on this content plan: "${previousOutput}"
           
-          Generate 10 creative content ideas including:
-          1. Engaging headlines/hooks
-          2. Content formats (video, post, story, etc.)
-          3. Key messages
-          4. Visual concepts
-          5. Call-to-action suggestions
-          
-          Make ideas specific, actionable, and engaging.`
+${campaignContext}
+
+Generate 12 creative content ideas including:
+1. Engaging headlines/hooks that stop the scroll
+2. Content formats (video, carousel, story, reel, etc.)
+3. Key messages and value propositions
+4. Visual concepts and styling directions
+5. Interactive elements (polls, Q&A, challenges)
+6. Call-to-action suggestions
+7. Trending hashtags and keywords
+8. Cross-platform adaptation strategies
+
+Make each idea specific, actionable, and optimized for engagement.`
+          useSearch = true
           break
           
         case 'creative':
           prompt = `Using these content ideas: "${previousOutput}"
           
-          Create detailed content for the top 3 ideas:
-          1. Full scripts/copy
-          2. Visual descriptions
-          3. Platform-specific versions
-          4. Hashtag suggestions
-          5. Engagement hooks
-          
-          Make content ready for production.`
+${campaignContext}
+
+Create detailed content for the top 5 ideas:
+1. Full scripts/copy with engaging openings and strong closings
+2. Visual descriptions and shot lists
+3. Platform-specific versions (Instagram vs TikTok vs LinkedIn)
+4. Hashtag suggestions (5-15 per platform)
+5. Engagement hooks and conversation starters
+6. Thumbnail/cover image concepts
+7. Caption variations for A/B testing
+8. Story/highlight adaptations
+
+Make content production-ready with specific instructions.`
           break
           
         case 'competitor':
-          prompt = `Analyze competitor content strategies and provide:
-          1. Top 5 competitor analysis
-          2. Content gaps and opportunities
-          3. Trending topics in the niche
-          4. Best performing content types
-          5. Differentiation strategies
+          prompt = `Analyze competitor content strategies in this niche:
           
-          Focus on actionable competitive insights.`
+${campaignContext}
+
+Provide:
+1. Top 10 competitor analysis with specific examples
+2. Content gaps and untapped opportunities
+3. Trending topics and viral formats in the niche
+4. Best performing content types and engagement patterns
+5. Differentiation strategies and unique angles
+6. Pricing/value proposition insights
+7. Audience engagement patterns and preferences
+8. Content frequency and posting schedules
+9. Collaboration and partnership opportunities
+
+Focus on actionable competitive intelligence with specific recommendations.`
+          useSearch = true
           break
           
         case 'evaluation':
-          prompt = `Evaluate this content: "${previousOutput}"
+          prompt = `Evaluate this content comprehensively: "${previousOutput}"
           
-          Provide detailed feedback on:
-          1. Content quality and engagement potential
-          2. SEO optimization suggestions
-          3. Brand alignment
-          4. Audience relevance
-          5. Improvement recommendations
-          
-          Include specific, actionable feedback.`
+${campaignContext}
+
+Provide detailed feedback on:
+1. Content quality and engagement potential (score 1-10)
+2. SEO optimization and discoverability
+3. Brand alignment and voice consistency
+4. Audience relevance and value delivery
+5. Platform-specific optimization
+6. Call-to-action effectiveness
+7. Visual appeal and production quality
+8. Trending topic alignment
+9. Improvement recommendations with specific changes
+10. A/B testing suggestions
+
+Include specific, actionable feedback with before/after examples.`
           break
           
         case 'scheduling':
-          prompt = `Create a publishing schedule based on: "${previousOutput}"
+          prompt = `Create a comprehensive publishing schedule based on: "${previousOutput}"
           
-          Include:
-          1. Optimal posting times for each platform
-          2. Content sequencing strategy
-          3. Cross-platform promotion plan
-          4. Engagement follow-up schedule
-          5. Performance tracking milestones
-          
-          Provide a detailed timeline.`
+${campaignContext}
+
+Include:
+1. Optimal posting times for each platform (with timezone considerations)
+2. Content sequencing strategy and narrative flow
+3. Cross-platform promotion and repurposing plan
+4. Engagement follow-up schedule and community management
+5. Performance tracking milestones and KPIs
+6. Content batching and production timeline
+7. Seasonal/event-based scheduling opportunities
+8. Backup content and contingency plans
+9. Team collaboration and approval workflows
+10. Analytics review and optimization schedule
+
+Provide a detailed 30-day timeline with specific dates and times.`
+          useSearch = true
           break
       }
 
@@ -179,15 +245,17 @@ const AIWorkflow: React.FC<AIWorkflowProps> = ({ campaignId, onBack }) => {
       const progressInterval = setInterval(() => {
         setWorkflowSteps(prev => prev.map((s, i) => 
           i === stepIndex && s.status === 'running' 
-            ? { ...s, progress: Math.min(s.progress + 10, 90) } 
+            ? { ...s, progress: Math.min(s.progress + 8, 90) } 
             : s
         ))
-      }, 200)
+      }, 300)
 
-      // Generate content using AI
+      // Generate content using AI with enhanced parameters
       const { text } = await blink.ai.generateText({
         prompt,
-        maxTokens: 1500
+        maxTokens: 2000,
+        search: useSearch,
+        model: 'gpt-4o-mini' // Use a specific model for consistency
       })
 
       clearInterval(progressInterval)
@@ -199,25 +267,39 @@ const AIWorkflow: React.FC<AIWorkflowProps> = ({ campaignId, onBack }) => {
           : s
       ))
 
-      // Save to database
+      // Save to database with proper user context
       await blink.db.content.create({
-        campaign_id: campaignId || 'demo-campaign',
+        id: `content_${step.id}_${Date.now()}`,
+        campaign_id: campaignId || `demo_${Date.now()}`,
         agent_type: step.id,
         content_type: 'ai_generated',
         title: step.name,
         content: text,
         status: 'completed',
-        user_id: 'current-user',
+        user_id: user.id,
         created_at: new Date().toISOString()
+      })
+
+      // Log activity
+      await blink.db.activity_log.create({
+        user_id: user.id,
+        action: 'workflow_step_completed',
+        target: step.name,
+        details: `Completed ${step.name} with ${text.length} characters of content`,
+        timestamp: new Date().toISOString()
       })
 
     } catch (error) {
       console.error(`Error in ${step.name}:`, error)
-      setWorkflowSteps(prev => prev.map((s, i) => 
-        i === stepIndex 
-          ? { ...s, status: 'error' as const, progress: 0 }
-          : s
-      ))
+      const progressInterval = setInterval(() => {
+        setWorkflowSteps(prev => prev.map((s, i) => 
+          i === stepIndex 
+            ? { ...s, status: 'error' as const, progress: 0, output: `Error: ${error.message || 'Failed to generate content'}` }
+            : s
+        ))
+      }, 100)
+      
+      setTimeout(() => clearInterval(progressInterval), 500)
     }
   }
 

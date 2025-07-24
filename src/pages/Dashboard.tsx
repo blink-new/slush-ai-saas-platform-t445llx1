@@ -39,10 +39,11 @@ import { blink } from '../blink/client'
 
 interface DashboardProps {
   user: any
-  onNavigate: (page: string) => void
+  onNavigate: (page: string, campaignId?: string) => void
+  onSignOut: () => void
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
+const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate, onSignOut }) => {
   const [darkMode, setDarkMode] = useState(false)
   const [activeAgents, setActiveAgents] = useState(0)
   const [campaigns, setCampaigns] = useState([])
@@ -54,7 +55,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
   }
 
   const handleLogout = () => {
-    blink.auth.logout()
+    onSignOut()
   }
 
   const agents = useMemo(() => [
@@ -263,7 +264,19 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
             </Badge>
           </div>
           
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2">
+            <Button variant="ghost" size="sm" onClick={() => onNavigate('ai-workflow')}>
+              <Sparkles className="w-4 h-4 mr-2" />
+              AI Workflow
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => onNavigate('integrations')}>
+              <Settings className="w-4 h-4 mr-2" />
+              Integrations
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => onNavigate('team')}>
+              <Users className="w-4 h-4 mr-2" />
+              Team
+            </Button>
             <Button variant="ghost" size="icon">
               <Bell className="w-4 h-4" />
             </Button>
@@ -358,7 +371,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
           <TabsContent value="agents" className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-2xl font-bold">Your AI Agent Team</h2>
-              <Button>
+              <Button onClick={() => onNavigate('campaign-creator')}>
                 <Plus className="w-4 h-4 mr-2" />
                 Create New Campaign
               </Button>
@@ -414,7 +427,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
           <TabsContent value="campaigns" className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-2xl font-bold">Active Campaigns</h2>
-              <Button>
+              <Button onClick={() => onNavigate('campaign-creator')}>
                 <Plus className="w-4 h-4 mr-2" />
                 New Campaign
               </Button>

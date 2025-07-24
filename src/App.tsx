@@ -3,13 +3,20 @@ import { blink } from './blink/client'
 import LandingPage from './pages/LandingPage'
 import Dashboard from './pages/Dashboard'
 import OnboardingPage from './pages/OnboardingPage'
+import CampaignCreator from './pages/CampaignCreator'
+import AIWorkflow from './pages/AIWorkflow'
+import Integrations from './pages/Integrations'
+import TeamCollaboration from './pages/TeamCollaboration'
 import { Toaster } from './components/ui/toaster'
+
+type Page = 'landing' | 'dashboard' | 'campaign-creator' | 'ai-workflow' | 'integrations' | 'team'
 
 function App() {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [currentPage, setCurrentPage] = useState('landing')
+  const [currentPage, setCurrentPage] = useState<Page>('landing')
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string | undefined>()
 
   useEffect(() => {
     const unsubscribe = blink.auth.onAuthStateChanged((state) => {
@@ -41,8 +48,17 @@ function App() {
     }
   }
 
-  const navigateTo = (page: string) => {
+  const navigateTo = (page: Page, campaignId?: string) => {
     setCurrentPage(page)
+    if (campaignId) {
+      setSelectedCampaignId(campaignId)
+    }
+  }
+
+  const handleSignOut = () => {
+    blink.auth.logout()
+    setCurrentPage('landing')
+    setShowOnboarding(false)
   }
 
   if (loading) {
@@ -69,18 +85,45 @@ function App() {
     )
   }
 
-  if (currentPage === 'dashboard' && user) {
-    return (
-      <>
-        <Dashboard user={user} onNavigate={navigateTo} />
-        <Toaster />
-      </>
-    )
-  }
-
   return (
     <>
-      <LandingPage onLogin={handleLogin} onNavigate={navigateTo} />
+      {currentPage === 'landing' && (
+        <LandingPage onLogin={handleLogin} onNavigate={navigateTo} />
+      )}
+
+      {currentPage === 'dashboard' && user && (
+        <Dashboard 
+          user={user} 
+          onNavigate={navigateTo}
+          onSignOut={handleSignOut}
+        />
+      )}
+
+      {currentPage === 'campaign-creator' && (
+        <CampaignCreator 
+          onBack={() => navigateTo('dashboard')}
+        />
+      )}
+
+      {currentPage === 'ai-workflow' && (
+        <AIWorkflow 
+          campaignId={selectedCampaignId}
+          onBack={() => navigateTo('dashboard')}
+        />
+      )}
+
+      {currentPage === 'integrations' && (
+        <Integrations 
+          onBack={() => navigateTo('dashboard')}
+        />
+      )}
+
+      {currentPage === 'team' && (
+        <TeamCollaboration 
+          onBack={() => navigateTo('dashboard')}
+        />
+      )}
+
       <Toaster />
     </>
   )
